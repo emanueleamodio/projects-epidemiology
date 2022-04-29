@@ -1,0 +1,114 @@
+#UPLOADING DB
+DBmig <- read.csv("C:/Users/Dario/Desktop/AMODIO/Migrants/DBmig.txt", sep=";")
+View(DBmig)
+
+library(readxl)
+ISTATclass <- read_excel("C:/Users/Dario/Desktop/AMODIO/Migrants/ISTATclass.xlsx")
+View(ISTATclass)
+
+library(gmodels)
+library(ggpubr)
+library(ggplot2)
+library(forestmodel)
+library(dplyr)
+library(epiDisplay)
+library(normtest)
+
+
+#REDEFINING VARIABLES
+DBmig$Eta <- as.numeric(difftime(Sys.Date(),DBmig$dataNascita, units = "wees"))/52.25
+DBmig$NazioneFinale <- ifelse(DBmig$mig2=="esteroIrregolare",DBmig$Nazione,ifelse(DBmig$mig2=="esteroCF",DBmig$Denominazione.IT,"Italia"))
+DBmig$NazioneFinale <- ifelse(DBmig$NazioneFinale=="Serbia[1]","Serbia",ifelse(DBmig$NazioneFinale=="Maurizio","Mauritius",ifelse(DBmig$NazioneFinale=="Per<f9>","Peru'",ifelse(DBmig$NazioneFinale=="PerÃ¹","Peru'",DBmig$NazioneFinale))))
+DBmig$NazioneFinale <- ifelse(is.na(DBmig$NazioneFinale),"Italia",DBmig$NazioneFinale)
+table(is.na(DBmig$NazioneFinale))
+DBmig <- merge(x=DBmig,y=ISTATclass,by.x = c("NazioneFinale"),by.y=c("Nazioni"), all.x = TRUE)
+DBmig$Eta <- as.numeric(difftime(Sys.Date(),DBmig$dataNascita, units = "weeks"))/52.25
+DBmig$trimestri <- ifelse(DBmig$dataPrelievo<"2020-01-01",NA,ifelse(DBmig$dataPrelievo<"2020-04-01","Jan-Mar2020",ifelse(DBmig$dataPrelievo<"2020-07-01","Apr-Jun2020",ifelse(DBmig$dataPrelievo<"2020-10-01","Jul-Sep2020",ifelse(DBmig$dataPrelievo<"2021-01-01","Oct-Dec2020",ifelse(DBmig$dataPrelievo<"2021-04-01","Jan-Mar2021",NA))))))
+
+DBmig$mig2 <- ifelse(DBmig$mig=="ita"&is.na(DBmig$migNazione)==T,"ita",ifelse(DBmig$mig=="ita"&DBmig$migNazione=="estero","esteroIrregolare",DBmig$mig))
+
+DBmig$mig3 <- ifelse(DBmig$mig=="ita"&is.na(DBmig$migNazione)==T,"Italia",ifelse(DBmig$mig=="ita"&DBmig$migNazione=="estero","Estero Irregolare",DBmig$ISTATclass))
+DBmig$mig3 <- ifelse(is.na(DBmig$mig3),"Italia",DBmig$mig3)
+DBmig$mig3 <- ordered(DBmig$mig3, levels=c("Italia","Estero Irregolare","Non-European countries with High Migratory Pressure","European countries with High Migratory Pressure","Highly developed countries"))
+
+DBmig$WorstClinOutcome <- ordered(DBmig$StatoclinicopeggioreDecodificato...6, levels=c("Asintomatico","Guarito","Pauci-sintomatico","Lieve","Severo","Critico","Deceduto"))
+
+DBmig$OutcomeOID <- ifelse(DBmig$Deceduto=="1","Deceduto",ifelse(DBmig$Intubato=="1","Intubato",ifelse(DBmig$Ospedalizzato=="1","Ospedalizzato",0)))
+DBmig$OutcomeOID <- ordered(DBmig$OutcomeOID, levels=c("0","Ospedalizzato","Intubato","Deceduto"))
+
+DBmig$EtaStrat <- ifelse(DBmig$Eta<18,"0-17", ifelse(DBmig$Eta>=18 & DBmig$Eta<50,"18-49", ifelse(DBmig$Eta>=50 & DBmig$Eta<65,"50-64", ifelse(DBmig$Eta>=65 & DBmig$Eta<75,"65-74", "75+"))))
+
+
+
+
+#DESCRIPTIVE ANALYSIS
+MigSex <- CrossTable(DBmig$mig3,DBmig$sesso,prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
+MigMeanAge <- tapply(DBmig$Eta, DBmig$mig3, summary)
+MigMeanAge
+ajb.norm.test(DBmig$Eta)
+MigClin <- CrossTable(DBmig$mig3,DBmig$WorstClinOutcome, prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
+MigOut <- CrossTable(DBmig$mig3,DBmig$OutcomeOID, prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
+MigAge <- CrossTable(DBmig$mig3,DBmig$EtaStrat,prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
+MigTri <- CrossTable(DBmig$mig3,DBmig$trimestri,prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
+
+
+#Difference in the median number of days between first swab and symptoms onset among Italians and non-Italians with COVID-19
+DBmig$DataRicoveroOsp <- ifelse(DBmig$OutcomeOspedale>0,DBmig$dataRicovero,NA)
+DBmig$dataPrelievo1 <- DBmig$dataPrelievo
+DBmig$DaysafterSymptoms <- as.numeric(difftime(DBmig$DataInizioSintomi,DBmig$dataPrelievo1, units = "days"))
+DBmig$DaysafterSymptoms <- ifelse(DBmig$DaysafterSymptoms>60,NA,ifelse(DBmig$DaysafterSymptoms<(-10),NA,DBmig$DaysafterSymptoms))
+tapply(DBmig$DaysafterSymptoms[is.na(DBmig$DaysafterSymptoms)==F],DBmig$mig3[is.na(DBmig$DaysafterSymptoms)==F], summary)
+
+hist(DBmig$DaysafterSymptoms, nclass = 10)
+
+tapply(DBmig$DaysafterSymptoms, DBmig$mig3, summary)
+kruskal.test(DBmig$DaysafterSymptoms ~ DBmig$mig3)
+
+
+#Difference in the median number of days between first swab and hospitalization among Italians and non-Italians with COVID-19
+DBmig$DataRicoveroOsp <- ifelse(DBmig$OutcomeOspedale>0,DBmig$dataRicovero,NA)
+DBmig$dataPrelievo1 <- DBmig$dataPrelievo
+DBmig$DaysafterSwab <- (difftime(DBmig$DataRicoveroOsp,DBmig$dataPrelievo1, units = "days"))
+DBmig$DaysafterSwab <- ifelse(DBmig$DaysafterSwab>60,NA,ifelse(DBmig$DaysafterSwab<(-10),NA,DBmig$DaysafterSwab))
+tapply(DBmig$DaysafterSwab[is.na(DBmig$DaysafterSwab)==F],DBmig$mig3[is.na(DBmig$DaysafterSwab)==F], summary)
+
+hist(DBmig$DaysafterSwab, nclass = 10)
+
+tapply(DBmig$DaysafterSwab, DBmig$mig3, summary)
+kruskal.test(DBmig$DaysafterSwab ~ DBmig$mig3)
+
+
+#Difference in the median number of days between symptoms onset and hospitalization among Italians and non-Italians with COVID-19DBmig$DataRicoveroOsp <- ifelse(DBmig$OutcomeOspedale>0,DBmig$dataRicovero,NA)
+DBmig$DaysafterSYmptoms2 <- (difftime(DBmig$DataRicoveroOsp,DBmig$DataInizioSintomi, units = "days"))
+DBmig$DaysafterSYmptoms2 <- ifelse(DBmig$DaysafterSYmptoms2>60,NA,ifelse(DBmig$DaysafterSYmptoms2<(-10),NA,DBmig$DaysafterSYmptoms2))
+tapply(DBmig$DaysafterSYmptoms2[is.na(DBmig$DaysafterSYmptoms2)==F],DBmig$mig3[is.na(DBmig$DaysafterSYmptoms2)==F], summary)
+
+hist(DBmig$DaysafterSYmptoms2, nclass = 10)
+
+tapply(DBmig$DaysafterSYmptoms2, DBmig$mig3, summary)
+kruskal.test(DBmig$DaysafterSYmptoms2 ~ DBmig$mig3)
+
+
+#UNIVARIATE ANALYSIS
+DBmig$outcomeOsp01 <- as.numeric(ifelse(DBmig$OutcomeOID=="0","0","1"))
+OutSex <- CrossTable(DBmig$sesso, DBmig$outcomeOsp01, prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
+OutAge <- tapply(DBmig$Eta, DBmig$outcomeOsp01, summary)
+OutAge
+wilcox.test(DBmig$Eta ~ DBmig$outcomeOsp01)
+OutMig <- CrossTable(DBmig$mig3, DBmig$outcomeOsp01, prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
+OutTri <- CrossTable(DBmig$trimestri, DBmig$outcomeOsp01, prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
+
+
+#MULTIVARIATE LOGISTIC REGRESSION
+DBmig$mig3 <- as.factor(DBmig$mig3)
+DBmig$sesso <- as.factor(DBmig$sesso)
+DBmig$EtaStrat <- as.factor(DBmig$EtaStrat)
+DBmig$StatoClinicoPeggiore <- as.factor(DBmig$StatoClinicoPeggiore)
+DBmig$mig3 <- ifelse(DBmig$mig=="ita"&is.na(DBmig$migNazione)==T,"Italia",ifelse(DBmig$mig=="ita"&DBmig$migNazione=="estero","Estero Irregolare",DBmig$ISTATclass))
+DBmig$mig3 <- ifelse(is.na(DBmig$mig3),"Italia",DBmig$mig3)
+DBmig$mig3 <- relevel(as.factor(DBmig$mig3), ref = "Italia")
+DBmig$trimestri <- relevel(as.factor(DBmig$trimestri), ref = "Jan-Mar2021")
+RMN <- glm(DBmig$outcomeOsp01 ~ DBmig$sesso + DBmig$Eta + DBmig$mig3 + DBmig$trimestri + DBmig$DaysafterSymptoms, family = binomial(link = 'logit'))
+summary(RMN)
+logistic.display(RMN)
+print(forest_model(RMN, format_options = list(colour = "black", shape = 15, banded = TRUE, text_size = 5, point_size = 2)))
