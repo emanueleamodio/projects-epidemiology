@@ -1,9 +1,9 @@
 #UPLOADING DB
-DBmig <- read.csv("C:/Users/Dario/Desktop/AMODIO/Migrants/DBmig.txt", sep=";")
+DBmig <- read.csv("C:/Users/Desktop/Migrants/DBmig.txt", sep=";")
 View(DBmig)
 
 library(readxl)
-ISTATclass <- read_excel("C:/Users/Dario/Desktop/AMODIO/Migrants/ISTATclass.xlsx")
+ISTATclass <- read_excel("C:/Users/Desktop/Migrants/ISTATclass.xlsx")
 View(ISTATclass)
 
 library(gmodels)
@@ -14,8 +14,6 @@ library(dplyr)
 library(epiDisplay)
 library(normtest)
 
-
-#REDEFINING VARIABLES
 DBmig$Eta <- as.numeric(difftime(Sys.Date(),DBmig$dataNascita, units = "wees"))/52.25
 DBmig$NazioneFinale <- ifelse(DBmig$mig2=="esteroIrregolare",DBmig$Nazione,ifelse(DBmig$mig2=="esteroCF",DBmig$Denominazione.IT,"Italia"))
 DBmig$NazioneFinale <- ifelse(DBmig$NazioneFinale=="Serbia[1]","Serbia",ifelse(DBmig$NazioneFinale=="Maurizio","Mauritius",ifelse(DBmig$NazioneFinale=="Per<f9>","Peru'",ifelse(DBmig$NazioneFinale=="PerÃ¹","Peru'",DBmig$NazioneFinale))))
@@ -39,9 +37,6 @@ DBmig$OutcomeOID <- ordered(DBmig$OutcomeOID, levels=c("0","Ospedalizzato","Intu
 DBmig$EtaStrat <- ifelse(DBmig$Eta<18,"0-17", ifelse(DBmig$Eta>=18 & DBmig$Eta<50,"18-49", ifelse(DBmig$Eta>=50 & DBmig$Eta<65,"50-64", ifelse(DBmig$Eta>=65 & DBmig$Eta<75,"65-74", "75+"))))
 
 
-
-
-#DESCRIPTIVE ANALYSIS
 MigSex <- CrossTable(DBmig$mig3,DBmig$sesso,prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
 MigMeanAge <- tapply(DBmig$Eta, DBmig$mig3, summary)
 MigMeanAge
@@ -89,7 +84,7 @@ tapply(DBmig$DaysafterSYmptoms2, DBmig$mig3, summary)
 kruskal.test(DBmig$DaysafterSYmptoms2 ~ DBmig$mig3)
 
 
-#UNIVARIATE ANALYSIS
+
 DBmig$outcomeOsp01 <- as.numeric(ifelse(DBmig$OutcomeOID=="0","0","1"))
 OutSex <- CrossTable(DBmig$sesso, DBmig$outcomeOsp01, prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
 OutAge <- tapply(DBmig$Eta, DBmig$outcomeOsp01, summary)
@@ -99,7 +94,7 @@ OutMig <- CrossTable(DBmig$mig3, DBmig$outcomeOsp01, prop.r=TRUE, prop.c=FALSE, 
 OutTri <- CrossTable(DBmig$trimestri, DBmig$outcomeOsp01, prop.r=TRUE, prop.c=FALSE, prop.t=FALSE, prop.chisq=TRUE, chisq = TRUE)
 
 
-#MULTIVARIATE LOGISTIC REGRESSION
+
 DBmig$mig3 <- as.factor(DBmig$mig3)
 DBmig$sesso <- as.factor(DBmig$sesso)
 DBmig$EtaStrat <- as.factor(DBmig$EtaStrat)
